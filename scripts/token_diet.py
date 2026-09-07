@@ -75,6 +75,29 @@ def which(name):
     return shutil.which(name)
 
 
+def rtk_init_cmd():
+    """Non-interactive `rtk init` for the installed binary.
+
+    `--auto-patch` is not universal. Probe `rtk init --help` and only pass
+    flags that exist. Prefer `--auto-patch` (no prompt); else `--no-patch`.
+    """
+    cmd = ["rtk", "init", "-g"]
+    help_txt = ""
+    try:
+        help_txt = subprocess.check_output(
+            ["rtk", "init", "--help"],
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        help_txt = ""
+    if "--auto-patch" in help_txt:
+        cmd.append("--auto-patch")
+    elif "--no-patch" in help_txt:
+        cmd.append("--no-patch")
+    return cmd
+
+
 def read_text(path):
     try:
         return path.read_text(encoding="utf-8")
@@ -270,13 +293,14 @@ def apply_claude(args, rep):
     if rtk_hook:
         rep.add("claude.rtk_hook", "ok", "present")
     elif which("rtk"):
-        cmd = "rtk init -g --auto-patch"
+        argv = rtk_init_cmd()
+        cmd = " ".join(argv)
         if getattr(args, "rtk", False):
             if args.dry_run:
                 rep.add("claude.rtk_hook", "would-change", cmd)
             else:
                 try:
-                    subprocess.check_call(cmd.split())
+                    subprocess.check_call(argv)
                     rep.add("claude.rtk_hook", "applied", cmd)
                 except (OSError, subprocess.CalledProcessError) as exc:
                     rep.add("claude.rtk_hook", "error", str(exc))
@@ -391,6 +415,8 @@ def apply_hermes(args, rep):
 
 
 def cmd_apply(args):
+    if getattr(args, "explicit_dry_run", False):
+        args.yes = False
     args.dry_run = not args.yes
     mode = "dry-run" if args.dry_run else "apply"
     print("%s token-diet  home=%s  target=%s" % (mode, home_dir(), args.target))
@@ -414,6 +440,8 @@ def cmd_apply(args):
     )
     if rep.failed():
         return 1
+    if args.dry_run and rep.would():
+        return 3
     return 0
 
 
@@ -520,6 +548,8 @@ def restore_backup(path, dry, rep, key):
 
 
 def cmd_rollback(args):
+    if getattr(args, "explicit_dry_run", False):
+        args.yes = False
     args.dry_run = not args.yes
     mode = "dry-run" if args.dry_run else "rollback"
     print("%s token-diet rollback  home=%s" % (mode, home_dir()))
@@ -545,7 +575,11 @@ def cmd_rollback(args):
         "summary: would-change=%d applied=%d skip=%d error=%d"
         % (n.get("would-change", 0), n.get("applied", 0), n.get("skip", 0), n.get("error", 0))
     )
-    return 1 if rep.failed() else 0
+    if rep.failed():
+        return 1
+    if args.dry_run and rep.would():
+        return 3
+    return 0
 
 
 def build_parser():
@@ -557,8 +591,18 @@ def build_parser():
         s.add_argument("--force", action="store_true", help="write even if CLI/dir not detected")
         if name != "measure":
             s.add_argument("--yes", action="store_true", help="write files (default is dry-run)")
+            s.add_argument(
+                "--dry-run",
+                dest="explicit_dry_run",
+                action="store_true",
+                help="explicit dry-run (default). Exit 3 if would-change>0",
+            )
         if name == "apply":
-            s.add_argument("--rtk", action="store_true", help="run `rtk init -g --auto-patch` if hook missing")
+            s.add_argument(
+                "--rtk",
+                action="store_true",
+                help="run `rtk init -g` (plus --auto-patch if that rtk supports it) if hook missing",
+            )
             s.add_argument("--skip-hermes-cli", action="store_true", help="do not call `hermes config`")
     return p
 

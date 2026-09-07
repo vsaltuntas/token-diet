@@ -1,4 +1,8 @@
 # Overlay: `codex --profile worker`
+# Usage:    codex --profile worker
 # Do not put [profiles.worker] in config.toml (Codex 0.147+ rejects it).
-# Set `model` yourself to a cheap worker if you want; effort is the diet.
+#
+# Effort is the diet. Model is yours. If `model` is unset, Codex uses your
+# default — often the expensive primary. Uncomment a cheap worker you have:
+# model = "gpt-5.5"
 model_reasoning_effort = "low"
