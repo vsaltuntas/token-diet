@@ -1,0 +1,4 @@
+# Overlay: `codex --profile worker`
+# Do not put [profiles.worker] in config.toml (Codex 0.147+ rejects it).
+# Set `model` yourself to a cheap worker if you want; effort is the diet.
+model_reasoning_effort = "low"
