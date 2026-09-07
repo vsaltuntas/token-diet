@@ -6,6 +6,12 @@ Chief plans. Workers do. No OAuth proxies. No host-specific gateways.
 
 Paylaşılan, hesaplı ayar paketi. Şef planlar, işçiler yapar. Abonelik OAuth'u proxy'den geçirmez.
 
+## How it works / Nasıl çalışır
+
+**Nasıl çalışır:** Bir kodlama ajanı her turda tüm konuşmayı modele yeniden gönderir; pahalı model her işi kendi yaparsa maliyet üstel büyür. token-diet üç şey yapar: (1) ajanın talimat dosyasına "pahalı model yalnız planlar ve kabul eder; kod/araştırma/test ucuz alt ajana gider; çıktı kısa" kuralını ekler, (2) reasoning seviyesini ve araç çıktısı boyutunu sınırlar, arka plan self-review'ı kapatır, (3) ucuz işçi/denetçi profilleri oluşturur. Önce ölçer, dry-run gösterir, onayla yazar, tek komutla geri alınır.
+
+**How it works:** A coding agent re-sends the whole conversation every turn; if the expensive model does all the work, cost compounds. token-diet does three things: (1) appends a "chief plans and accepts; code/research/tests go to a cheap sub-agent; terse output" rule to your agent's instruction file, (2) caps reasoning effort and tool-output size, turns off background self-review, (3) creates cheap worker/reviewer profiles. Measure first, dry-run, apply on approval, roll back with one command.
+
 ## Install
 
 ```bash
@@ -34,6 +40,18 @@ Not a promise for your machine. One 7-day window, Hermes Mac + Codex Mac + netcu
 Independent audit of the live Mac/netcup apply: **60 PASS / 0 FAIL**.
 
 Your `./scripts/measure.sh` is the only number that matters on a new machine.
+
+## Second measurement
+
+The table above is the **pre-install** 7-day window (to 6 Sep 2026). A second measurement is the same method on the **7 days after** install (total tokens, cache-read per call, reasoning, estimated $). That before/after is what makes the claim checkable.
+
+Read-only; queries `~/.hermes/state.db`; writes nothing:
+
+```
+./scripts/second_measure.sh
+```
+
+Post-install window closes **13 Sep 2026**. Until then the script still prints a partial `after` row. Put those numbers here when the window is complete — do not invent them.
 
 ## What it does
 
