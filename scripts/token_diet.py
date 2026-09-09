@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""token-diet: measure / apply / rollback frugal settings for Claude Code, Codex, Hermes.
+"""token-diet: measure / apply / rollback frugal settings for coding agents.
 
 Default is dry-run. Never writes unless --yes. Never touches MCP lists, model
 ids, proxies, OAuth, or host-specific gateways.
+
+Core: Claude Code, Codex CLI, Hermes Agent.
+Native instruction snippets: Kimi, Gemini, Goose, Qwen, OpenCode, Cline, Droid.
 """
 from __future__ import print_function
 
@@ -46,6 +49,20 @@ HERMES_KEYS = (
     ("display.personality", "concise"),
 )
 AGENTS = ("implementer", "researcher", "reviewer")
+TARGETS = (
+    "all",
+    "claude",
+    "codex",
+    "hermes",
+    "kimi",
+    "gemini",
+    "goose",
+    "qwen",
+    "opencode",
+    "cline",
+    "droid",
+)
+NATIVE_SNIPPET_CLIENTS = ("kimi", "gemini", "goose", "qwen", "opencode", "cline", "droid")
 
 
 def home_dir():
@@ -69,6 +86,125 @@ def hermes_dir():
     if os.environ.get("TOKEN_DIET_HOME"):
         return home_dir() / ".hermes"
     return Path(os.environ.get("HERMES_HOME", home_dir() / ".hermes"))
+
+
+def config_home():
+    if os.environ.get("TOKEN_DIET_HOME"):
+        return home_dir() / ".config"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        return Path(xdg).expanduser()
+    return home_dir() / ".config"
+
+
+def kimi_dir():
+    if os.environ.get("TOKEN_DIET_HOME"):
+        h = home_dir()
+        if (h / ".kimi").exists() and not (h / ".kimi-code").exists():
+            return h / ".kimi"
+        return h / ".kimi-code"
+    env = os.environ.get("KIMI_CODE_HOME")
+    if env:
+        return Path(env).expanduser()
+    h = home_dir()
+    if (h / ".kimi-code").exists():
+        return h / ".kimi-code"
+    if (h / ".kimi").exists():
+        return h / ".kimi"
+    return h / ".kimi-code"
+
+
+def gemini_dir():
+    if os.environ.get("TOKEN_DIET_HOME"):
+        return home_dir() / ".gemini"
+    return Path(os.environ.get("GEMINI_HOME", home_dir() / ".gemini"))
+
+
+def goose_dir():
+    return config_home() / "goose"
+
+
+def qwen_dir():
+    if os.environ.get("TOKEN_DIET_HOME"):
+        return home_dir() / ".qwen"
+    return Path(os.environ.get("QWEN_HOME", home_dir() / ".qwen"))
+
+
+def opencode_dir():
+    env = os.environ.get("OPENCODE_CONFIG_DIR")
+    if env and not os.environ.get("TOKEN_DIET_HOME"):
+        return Path(env).expanduser()
+    return config_home() / "opencode"
+
+
+def cline_rules_dir():
+    docs = home_dir() / "Documents" / "Cline" / "Rules"
+    alt = home_dir() / "Cline" / "Rules"
+    if docs.exists():
+        return docs
+    if alt.exists():
+        return alt
+    return docs
+
+
+def factory_dir():
+    if os.environ.get("TOKEN_DIET_HOME"):
+        return home_dir() / ".factory"
+    return Path(os.environ.get("FACTORY_HOME", home_dir() / ".factory"))
+
+
+def native_client_specs():
+    return (
+        {
+            "name": "kimi",
+            "bins": ("kimi", "kimi-code"),
+            "dir": kimi_dir,
+            "file": "AGENTS.md",
+            "snippet": "kimi-AGENTS.md.snippet",
+        },
+        {
+            "name": "gemini",
+            "bins": ("gemini",),
+            "dir": gemini_dir,
+            "file": "GEMINI.md",
+            "snippet": "GEMINI.md.snippet",
+        },
+        {
+            "name": "goose",
+            "bins": ("goose",),
+            "dir": goose_dir,
+            "file": ".goosehints",
+            "snippet": "goosehints.snippet",
+        },
+        {
+            "name": "qwen",
+            "bins": ("qwen",),
+            "dir": qwen_dir,
+            "file": "QWEN.md",
+            "snippet": "QWEN.md.snippet",
+        },
+        {
+            "name": "opencode",
+            "bins": ("opencode",),
+            "dir": opencode_dir,
+            "file": "AGENTS.md",
+            "snippet": "OPENCODE.md.snippet",
+        },
+        {
+            "name": "cline",
+            "bins": ("cline",),
+            "dir": cline_rules_dir,
+            "file": "token-diet.md",
+            "snippet": "cline-token-diet.md.snippet",
+        },
+        {
+            "name": "droid",
+            "bins": ("droid",),
+            "dir": factory_dir,
+            "file": "AGENTS.md",
+            "snippet": "FACTORY.md.snippet",
+        },
+    )
 
 
 def which(name):
@@ -215,6 +351,13 @@ def set_toml_effort(text, value):
 
 def present_cli(binary, directory):
     return bool(which(binary) or directory.exists())
+
+
+def present_any(binaries, directory):
+    for b in binaries:
+        if which(b):
+            return True
+    return directory.exists()
 
 
 class Report(object):
@@ -414,6 +557,21 @@ def apply_hermes(args, rep):
     rep.add("hermes.soul", status, detail)
 
 
+def spec_paths(spec):
+    d = spec["dir"]()
+    return d, d / spec["file"]
+
+
+def apply_native(args, rep, spec):
+    d, dest = spec_paths(spec)
+    if not present_any(spec["bins"], d) and not args.force:
+        rep.add(spec["name"], "skip", "cli/dir not found")
+        return
+    snippet = read_text(TEMPLATES / spec["snippet"]) or ""
+    status, detail = append_snippet(dest, snippet, args.dry_run)
+    rep.add("%s.snippet" % spec["name"], status, detail)
+
+
 def cmd_apply(args):
     if getattr(args, "explicit_dry_run", False):
         args.yes = False
@@ -427,6 +585,9 @@ def cmd_apply(args):
         apply_codex(args, rep)
     if target_enabled(args, "hermes"):
         apply_hermes(args, rep)
+    for spec in native_client_specs():
+        if target_enabled(args, spec["name"]):
+            apply_native(args, rep, spec)
     n = rep.counts()
     print(
         "summary: would-change=%d applied=%d ok=%d skip=%d error=%d"
@@ -506,6 +667,15 @@ def measure_hermes(rep):
     rep.add("hermes.soul", "ok" if has_marker(text) else "missing", "")
 
 
+def measure_native(rep, spec):
+    d, dest = spec_paths(spec)
+    if not present_any(spec["bins"], d):
+        rep.add(spec["name"], "skip", "cli/dir not found")
+        return
+    text = read_text(dest)
+    rep.add("%s.snippet" % spec["name"], "ok" if has_marker(text) else "missing", str(dest))
+
+
 def cmd_measure(args):
     print("measure token-diet  home=%s" % home_dir())
     rtk = which("rtk")
@@ -517,6 +687,9 @@ def cmd_measure(args):
         measure_codex(rep)
     if target_enabled(args, "hermes"):
         measure_hermes(rep)
+    for spec in native_client_specs():
+        if target_enabled(args, spec["name"]):
+            measure_native(rep, spec)
     n = rep.counts()
     drift = n.get("drift", 0) + n.get("missing", 0)
     verdict = "already-dieted" if drift == 0 and n.get("error", 0) == 0 else "needs-apply"
@@ -570,6 +743,10 @@ def cmd_rollback(args):
         hdir = hermes_dir()
         restore_backup(hdir / "config.yaml", args.dry_run, rep, "hermes.config")
         restore_backup(hdir / "SOUL.md", args.dry_run, rep, "hermes.soul")
+    for spec in native_client_specs():
+        if target_enabled(args, spec["name"]):
+            _d, dest = spec_paths(spec)
+            restore_backup(dest, args.dry_run, rep, "%s.snippet" % spec["name"])
     n = rep.counts()
     print(
         "summary: would-change=%d applied=%d skip=%d error=%d"
@@ -583,11 +760,14 @@ def cmd_rollback(args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="token-diet", description="Frugal token settings for Claude Code / Codex / Hermes")
+    p = argparse.ArgumentParser(
+        prog="token-diet",
+        description="Frugal token settings for Claude / Codex / Hermes plus native rules for Kimi, Gemini, Goose, Qwen, OpenCode, Cline, Droid",
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("measure", "apply", "rollback"):
         s = sub.add_parser(name)
-        s.add_argument("--target", choices=("all", "claude", "codex", "hermes"), default="all")
+        s.add_argument("--target", choices=TARGETS, default="all")
         s.add_argument("--force", action="store_true", help="write even if CLI/dir not detected")
         if name != "measure":
             s.add_argument("--yes", action="store_true", help="write files (default is dry-run)")

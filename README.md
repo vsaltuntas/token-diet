@@ -1,6 +1,6 @@
 # token-diet
 
-Shareable, host-agnostic diet for **Claude Code**, **Codex CLI**, and **Hermes Agent**.
+Shareable, host-agnostic diet for **Claude Code**, **Codex CLI**, **Hermes Agent**, plus native instruction rules for **Kimi**, **Gemini CLI**, **Goose**, **Qwen Code**, **OpenCode**, **Cline**, and **Factory Droid**.
 
 Chief plans. Workers do. No OAuth proxies. No host-specific gateways.
 
@@ -55,11 +55,11 @@ Post-install window closes **13 Sep 2026**. Until then the script still prints a
 
 ## What it does
 
-1. **Instructions** — appends a short "delegate-first / terse / YAGNI" block to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.hermes/SOUL.md` if a token-diet marker is not already there.
+1. **Instructions** — appends a short "delegate-first / terse / YAGNI" block to each present client's native file if a token-diet marker is not already there: `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.hermes/SOUL.md`, `~/.kimi-code/AGENTS.md` (or `~/.kimi/AGENTS.md`), `~/.gemini/GEMINI.md`, `~/.config/goose/.goosehints`, `~/.qwen/QWEN.md`, `~/.config/opencode/AGENTS.md`, `~/Documents/Cline/Rules/token-diet.md` (or `~/Cline/Rules/token-diet.md`), `~/.factory/AGENTS.md`.
 2. **Settings** — Claude env: effort medium, subagent sonnet, MCP output 20k. Codex: cap `ultra`/`xhigh` → `high`; add `worker`/`reviewer` overlay files (not `[profiles.*]`). Hermes: reasoning medium, self-review off, tool output 20k, cache 1h, concise. Unknown keys are skipped (old Hermes has no `compression.*` / `background_review` — skip is success, not error).
 3. **Hook** — if `rtk` is installed and no hook exists, recommends `rtk init -g`. Runs it only with `--yes --rtk`. `--auto-patch` is passed only if *that* `rtk` lists it in `--help`.
 
-Missing CLIs are skipped. Existing files that already match are left alone.
+Missing CLIs are skipped. Existing files that already match are left alone. Extra clients (Kimi, Gemini, Goose, Qwen, OpenCode, Cline, Droid) get **native instruction snippets only** — no invented settings files, no default-model changes. `--target kimi|gemini|goose|qwen|opencode|cline|droid` limits scope.
 
 ## What it never does
 
@@ -70,6 +70,8 @@ Missing CLIs are skipped. Existing files that already match are left alone.
 - Pin Hermes auxiliary models (those are host-specific)
 - Pool or share OAuth credentials
 - Invent a Codex `config.toml` if you do not have one
+- Write ChatGPT / Claude.ai / Grok.com / Kimi web / Hermes Portal cloud-agent UIs (no native CLI instruction file)
+- Create iCloud-backed trees just to plant Cline rules: if `~/Documents/Cline/Rules` or `~/Cline/Rules` is missing, Cline is skipped unless `--force`
 
 ## Codex worker (cheap model is yours)
 
@@ -88,12 +90,13 @@ If you leave `model` unset, "low effort" still runs on your (often expensive) de
 model_reasoning_effort = "low"
 ```
 
-## Agent for friends (Claude / Codex / Hermes)
+## Agent for friends (Claude / Codex / Hermes + native rules)
 
 Copy of `templates/claude-agents/*.md` is automatic. After apply:
 
 - Claude: `@implementer` (sonnet), `@researcher` (haiku, read-only), `@reviewer` (sonnet, no writes)
 - Codex: `codex --profile worker`, `codex --profile reviewer`
+- Kimi / Gemini / Goose / Qwen / OpenCode / Cline / Droid: native instruction file only (sub-agents, Plan/Build, `/droids` — whatever that client already has)
 
 ## Safety
 
@@ -111,7 +114,7 @@ First backup is kept. Re-apply is idempotent (`would-change=0`, exit 0 on a mach
 ./tests/test_token_diet.sh
 ```
 
-Uses a temp HOME (never the real `$HOME`). Proves: dry-run writes nothing and exits 3; apply writes; second apply is 0 changes; unknown Hermes keys skip; rollback restores. Does not call live `hermes config set`.
+Uses a temp HOME (never the real `$HOME`). Proves: dry-run writes nothing and exits 3; apply writes; second apply is 0 changes; unknown Hermes keys skip; rollback restores; native clients skip without `--force`; Kimi/Cline path fallbacks. Does not call live `hermes config set`.
 
 ## License
 

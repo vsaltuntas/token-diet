@@ -4,6 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PY="$ROOT/scripts/token_diet.py"
+PYTHON3="$(command -v python3)"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
@@ -12,7 +13,7 @@ run_py() {
   # usage: run_py EXPECTED_RC args...
   local want="$1"; shift
   set +e
-  OUT="$(python3 "$PY" "$@" 2>&1)"
+  OUT="$("$PYTHON3" "$PY" "$@" 2>&1)"
   RC=$?
   set -e
   if [ "$RC" -ne "$want" ]; then
@@ -39,6 +40,13 @@ test ! -f "$TMP/.claude/settings.json" || fail "dry-run wrote settings.json"
 test ! -f "$TMP/.claude/CLAUDE.md" || fail "dry-run wrote CLAUDE.md"
 test ! -f "$TMP/.codex/worker.config.toml" || fail "dry-run wrote worker overlay"
 test ! -f "$TMP/.hermes/SOUL.md" || fail "dry-run wrote SOUL.md"
+test ! -f "$TMP/.kimi-code/AGENTS.md" || fail "dry-run wrote kimi AGENTS.md"
+test ! -f "$TMP/.gemini/GEMINI.md" || fail "dry-run wrote GEMINI.md"
+test ! -f "$TMP/.config/goose/.goosehints" || fail "dry-run wrote .goosehints"
+test ! -f "$TMP/.qwen/QWEN.md" || fail "dry-run wrote QWEN.md"
+test ! -f "$TMP/.config/opencode/AGENTS.md" || fail "dry-run wrote opencode AGENTS.md"
+test ! -f "$TMP/Documents/Cline/Rules/token-diet.md" || fail "dry-run wrote cline rule"
+test ! -f "$TMP/.factory/AGENTS.md" || fail "dry-run wrote factory AGENTS.md"
 pass "dry-run writes nothing and exits 3"
 
 run_py 3 apply --dry-run --force --skip-hermes-cli --target all
@@ -81,6 +89,13 @@ grep -q 'codex --profile worker' "$TMP/.codex/worker.config.toml" || fail "worke
 grep -q 'model = "gpt-5.5"' "$TMP/.codex/worker.config.toml" || fail "cheap model example"
 grep -q 'Token diet' "$TMP/.hermes/SOUL.md" || fail "SOUL snippet"
 grep -q 'You are Hermes.' "$TMP/.hermes/SOUL.md" || fail "SOUL preserved"
+grep -q 'Token diet' "$TMP/.kimi-code/AGENTS.md" || fail "kimi snippet"
+grep -q 'Token diet' "$TMP/.gemini/GEMINI.md" || fail "gemini snippet"
+grep -q 'Token diet' "$TMP/.config/goose/.goosehints" || fail "goose snippet"
+grep -q 'Token diet' "$TMP/.qwen/QWEN.md" || fail "qwen snippet"
+grep -q 'Token diet' "$TMP/.config/opencode/AGENTS.md" || fail "opencode snippet"
+grep -q 'Token diet' "$TMP/Documents/Cline/Rules/token-diet.md" || fail "cline snippet"
+grep -q 'Token diet' "$TMP/.factory/AGENTS.md" || fail "droid snippet"
 test -f "$TMP/.claude/settings.json.bak-token-diet" || fail "settings backup"
 test -f "$TMP/.codex/config.toml.bak-token-diet" || fail "codex backup"
 pass "apply --yes wrote expected files and kept extras"
@@ -228,6 +243,51 @@ if grep -q 'Token diet' "$TMP/.hermes/SOUL.md"; then
   fail "SOUL snippet not rolled back"
 fi
 test ! -f "$TMP/.claude/CLAUDE.md" || fail "created CLAUDE.md not removed"
+test ! -f "$TMP/.kimi-code/AGENTS.md" || fail "created kimi AGENTS.md not removed"
+test ! -f "$TMP/.gemini/GEMINI.md" || fail "created GEMINI.md not removed"
+test ! -f "$TMP/.config/goose/.goosehints" || fail "created .goosehints not removed"
+test ! -f "$TMP/.qwen/QWEN.md" || fail "created QWEN.md not removed"
+test ! -f "$TMP/.config/opencode/AGENTS.md" || fail "created opencode AGENTS.md not removed"
+test ! -f "$TMP/Documents/Cline/Rules/token-diet.md" || fail "created cline rule not removed"
+test ! -f "$TMP/.factory/AGENTS.md" || fail "created factory AGENTS.md not removed"
 pass "rollback restored originals"
+
+echo "== native skip without --force (no dirs, no write) =="
+SKIP="$TMP/skip-home"
+mkdir -p "$SKIP"
+# Host may have kimi/gemini/etc on PATH; isolate so skip is the only legal outcome.
+OUT=$(PATH="/usr/bin:/bin" TOKEN_DIET_HOME="$SKIP" "$PYTHON3" "$ROOT/scripts/token_diet.py" apply --yes --skip-hermes-cli --target kimi 2>&1) || true
+echo "$OUT" | grep -qE 'kimi[[:space:]]+skip' || fail "kimi should skip without --force: $OUT"
+test ! -f "$SKIP/.kimi-code/AGENTS.md" || fail "kimi wrote without --force"
+test ! -d "$SKIP/.kimi-code" || fail "kimi created dir without --force"
+pass "native skip without --force writes nothing"
+
+echo "== native --target gemini --force =="
+G="$TMP/gemini-home"
+mkdir -p "$G/.gemini"
+printf 'User gemini notes.\n' > "$G/.gemini/GEMINI.md"
+TOKEN_DIET_HOME="$G" python3 "$ROOT/scripts/token_diet.py" apply --yes --skip-hermes-cli --target gemini >/dev/null
+grep -q 'User gemini notes.' "$G/.gemini/GEMINI.md" || fail "GEMINI.md body lost"
+grep -q 'Token diet' "$G/.gemini/GEMINI.md" || fail "GEMINI.md snippet missing"
+OUT=$(TOKEN_DIET_HOME="$G" python3 "$ROOT/scripts/token_diet.py" apply --yes --skip-hermes-cli --target gemini 2>&1)
+echo "$OUT" | grep -q 'applied=0' || fail "gemini second apply not idempotent: $OUT"
+pass "gemini native snippet append + idempotent"
+
+echo "== kimi legacy ~/.kimi dir =="
+K="$TMP/kimi-legacy"
+mkdir -p "$K/.kimi"
+TOKEN_DIET_HOME="$K" python3 "$ROOT/scripts/token_diet.py" apply --yes --skip-hermes-cli --target kimi >/dev/null
+test -f "$K/.kimi/AGENTS.md" || fail "legacy kimi path not used"
+test ! -f "$K/.kimi-code/AGENTS.md" || fail "wrote kimi-code despite ~/.kimi"
+grep -q 'Token diet' "$K/.kimi/AGENTS.md" || fail "kimi legacy snippet"
+pass "kimi uses ~/.kimi when kimi-code is absent"
+
+echo "== cline alt ~/Cline/Rules =="
+C="$TMP/cline-alt"
+mkdir -p "$C/Cline/Rules"
+TOKEN_DIET_HOME="$C" python3 "$ROOT/scripts/token_diet.py" apply --yes --skip-hermes-cli --target cline >/dev/null
+test -f "$C/Cline/Rules/token-diet.md" || fail "cline alt path not used"
+test ! -f "$C/Documents/Cline/Rules/token-diet.md" || fail "wrote Documents path despite ~/Cline/Rules"
+pass "cline uses ~/Cline/Rules when present"
 
 echo "ALL TESTS PASSED"

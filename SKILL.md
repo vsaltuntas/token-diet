@@ -1,22 +1,22 @@
 ---
 name: token-diet
-description: Apply frugal token settings to Claude, Codex, Hermes.
-version: 0.2.0
+description: Apply frugal token settings to Claude, Codex, Hermes, and native rules for Kimi, Gemini, Goose, Qwen, OpenCode, Cline, Droid.
+version: 0.3.0
 author: Volkan Heingart, Hermes Agent
 license: MIT
 platforms: [linux, macos]
 metadata:
   hermes:
-    tags: [tokens, cost, claude-code, codex, hermes, frugal]
+    tags: [tokens, cost, claude-code, codex, hermes, kimi, gemini, goose, qwen, opencode, cline, droid, frugal]
 ---
 
 # token-diet
 
-Shareable, host-agnostic diet for coding agents. It appends a "chief plans, workers do" rule, caps reasoning waste, and adds cheap-worker overlays. It does **not** touch MCP lists, default models, OAuth, proxies, LiteLLM, or any host-specific gateway.
+Shareable, host-agnostic diet for coding agents. It appends a "chief plans, workers do" rule to each client's **native** instruction file, caps reasoning waste on Claude/Codex/Hermes, and adds cheap-worker overlays. Extra clients (Kimi, Gemini, Goose, Qwen, OpenCode, Cline, Droid) get snippets only. It does **not** touch MCP lists, default models, OAuth, proxies, LiteLLM, or any host-specific gateway.
 
 ## When to Use
 
-- User says "token-diet kur", "apply token diet", or "cut token spend on Claude/Codex/Hermes".
+- User says "token-diet kur", "apply token diet", or "cut token spend on Claude/Codex/Hermes/Kimi/Gemini/Goose/Qwen/OpenCode/Cline/Droid".
 - A friend cloned this folder and asked their agent to install it.
 
 Don't use for: routing subscription OAuth through a proxy (ToS/ban), disabling MCP servers, changing the user's default model, or netcup/ZOS/LiteLLM cutovers.
@@ -33,13 +33,13 @@ Run from this directory, via `terminal`, in this order. Do not jump to `--yes`.
 6. **Verify** — `./scripts/measure.sh` again. Success = no `drift`/`missing` on targets that exist. Then `./scripts/apply.sh --dry-run` → `would-change=0`, exit 0.
 7. **Rollback** — if they ask: `./scripts/rollback.sh` (dry-run) then `--yes`.
 
-`--target claude|codex|hermes` limits scope. `TOKEN_DIET_HOME=/tmp/fake` redirects all homes (tests).
+`--target claude|codex|hermes|kimi|gemini|goose|qwen|opencode|cline|droid` limits scope. `TOKEN_DIET_HOME=/tmp/fake` redirects all homes (tests).
 
 ## Prerequisites
 
 - `python3` (3.9+).
-- Optional CLIs: `claude`, `codex`, `hermes`, `rtk`. Missing CLIs are skipped.
-- Write access to `~/.claude`, `~/.codex`, `~/.hermes` only when the user passes `--yes`.
+- Optional CLIs: `claude`, `codex`, `hermes`, `kimi`/`kimi-code`, `gemini`, `goose`, `qwen`, `opencode`, `droid`, `rtk`. Missing CLIs are skipped. Cline is present if `~/Documents/Cline/Rules` or `~/Cline/Rules` exists.
+- Write access to client homes (`~/.claude`, `~/.codex`, `~/.hermes`, `~/.kimi-code`/`~/.kimi`, `~/.gemini`, `~/.config/goose`, `~/.qwen`, `~/.config/opencode`, Cline Rules, `~/.factory`) only when the user passes `--yes`.
 
 ## How to Run
 
@@ -65,6 +65,13 @@ Default for apply/rollback is dry-run. `--yes` writes. Each overwritten file get
 | `~/.codex/AGENTS.md` | append template | marker present |
 | Hermes `config` via CLI | reasoning medium, tier normal, background_review false, tool_output 20k/800, compress protect_last_n=10 + in_place + prune 48k, cache 1h, tool_search 5%, personality concise | `hermes config get` already equals target; **unknown keys skipped** (old Hermes) |
 | `~/.hermes/SOUL.md` | append Delege-önce | marker present |
+| Kimi `~/.kimi-code/AGENTS.md` (or `~/.kimi/AGENTS.md`) | append native snippet | marker present |
+| Gemini `~/.gemini/GEMINI.md` | append native snippet | marker present |
+| Goose `~/.config/goose/.goosehints` | append native snippet | marker present |
+| Qwen `~/.qwen/QWEN.md` | append native snippet | marker present |
+| OpenCode `~/.config/opencode/AGENTS.md` | append native snippet | marker present |
+| Cline `~/Documents/Cline/Rules/token-diet.md` (or `~/Cline/Rules`) | append/create native rule | marker present |
+| Droid `~/.factory/AGENTS.md` | append native snippet | marker present |
 
 ## Pitfalls
 
@@ -72,6 +79,8 @@ Default for apply/rollback is dry-run. `--yes` writes. Each overwritten file get
 - Codex 0.147+ errors if `[profiles.worker]` is inside `config.toml`. This skill only writes overlay files. Overlay `model` is commented; friends must set a cheap worker or they inherit the expensive default.
 - Do not run `rtk init` unless asked (`--rtk`). It patches Claude hooks; existing Stop/Notification hooks must stay.
 - `hermes config set` talks to the real Hermes home even if `TOKEN_DIET_HOME` is set. Tests pass `--skip-hermes-cli` or a stub `HERMES_BIN`. Never point `--yes` at a live Hermes config in a test.
+- Extra clients get instruction snippets only. Do not invent `settings.json` / `opencode.json` / Goose config, and do not pin their default models.
+- Web ChatGPT / Claude.ai / Grok.com / Kimi web / Hermes Portal cloud-agent settings have no CLI write path in this package. Skip them; do not scrape accounts.
 - Auxiliary *model* pinning is host-specific (Grok vs Flash vs Haiku). This package does not pin aux models.
 - Claude/Codex subscription OAuth must stay on the native CLI. No `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL`.
 
